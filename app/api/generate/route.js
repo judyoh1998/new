@@ -25,7 +25,21 @@ export async function POST(request) {
       : '(none available)';
 
     const systemPrompt = `You are a professional slide designer.
-Return only a single valid JSON object. No explanation, no markdown, no code fences.
+Return only a single valid JSON object matching this exact schema. No explanation, no markdown, no code fences.
+
+{
+  "layout": "title-body",
+  "title": "Slide title here",
+  "subtitle": null,
+  "body": ["Bullet one", "Bullet two", "Bullet three"],
+  "backgroundColor": "#FFFFFF",
+  "titleColor": "#1A3A5C",
+  "bodyColor": "#333333",
+  "accentColor": "#2E86AB",
+  "headingFont": "${headingFont}",
+  "bodyFont": "${bodyFont}",
+  "logoId": null
+}
 
 Brand colors: ${colorList}
 Brand fonts: heading ${headingFont}, body ${bodyFont}
@@ -33,13 +47,12 @@ Brand fonts: heading ${headingFont}, body ${bodyFont}
 Available logos:
 ${logoList}
 
-Allowed values for "layout": "title-only", "title-body", "title-subtitle-body".
-
 Rules:
-- body must have 2 to 5 items
-- each item max 12 words
+- layout must be one of: "title-only", "title-body", "title-subtitle-body"
+- body must have 2 to 5 items; each item max 12 words
+- subtitle is a string when layout is "title-subtitle-body", otherwise null
 - all colors must be valid hex strings like #1A3A5C
-- if no brand colors were detected, use professional neutral defaults
+- use brand colors for backgroundColor, titleColor, accentColor; if none detected, use professional neutral defaults
 - choose logoId only if it genuinely fits the content; otherwise null`;
 
     const userMessage = `Title: ${title}\nDescription: ${description}\nContent: ${content}`;
