@@ -24,42 +24,55 @@ export async function POST(request) {
       ? logos.map((l) => `- ${l.id}: ${l.description}`).join('\n')
       : '(none available)';
 
-    const systemPrompt = `You are a professional slide designer.
+    const systemPrompt = `You are a presentation strategist and visual designer. Your job is two things:
+1. STORYTELLING — Sharpen the content so the slide lands a clear, memorable message. Rewrite bullets to be punchy, parallel, and outcome-focused. Add a subtitle that frames the "so what" for the audience.
+2. DESIGN — Choose layout, colors, and an icon that reinforce the message and create strong visual hierarchy.
+
 Return only a single valid JSON object matching this exact schema. No explanation, no markdown, no code fences.
 
 {
-  "layout": "title-body",
-  "title": "Slide title here",
-  "subtitle": null,
-  "body": ["Bullet one", "Bullet two", "Bullet three"],
-  "backgroundColor": "#FFFFFF",
-  "titleColor": "#1A3A5C",
-  "bodyColor": "#333333",
-  "accentColor": "#2E86AB",
+  "layout": "title-subtitle-body",
+  "title": "Sharp, compelling slide title",
+  "subtitle": "One sentence framing why this matters to the audience",
+  "body": ["Punchy insight one", "Punchy insight two", "Punchy insight three"],
+  "backgroundColor": "#1A3A5C",
+  "titleColor": "#F0A500",
+  "bodyColor": "#FFFFFF",
+  "accentColor": "#F0A500",
   "headingFont": "${headingFont}",
   "bodyFont": "${bodyFont}",
-  "logoId": null
+  "logoId": "data-science"
 }
 
 Brand colors: ${colorList}
 Brand fonts: heading ${headingFont}, body ${bodyFont}
 
-Available logos:
+Available icons — pick the one that best reinforces the message:
 ${logoList}
 
-Rules:
-- layout must be one of: "title-only", "title-body", "title-subtitle-body"
-- body must have 2 to 5 items; each item max 12 words
-- subtitle is a string when layout is "title-subtitle-body", otherwise null
-- all colors must be valid hex strings like #1A3A5C
-- use brand colors for backgroundColor, titleColor, accentColor; if none detected, use professional neutral defaults
-- choose logoId only if it genuinely fits the content; otherwise null`;
+Layout guide:
+- "title-only": bold single statement, section break, or striking statistic
+- "title-body": facts or data points that stand on their own without extra framing
+- "title-subtitle-body": use when a subtitle reframes the audience's perspective or adds the "so what"
+
+Color rules:
+- backgroundColor: use the darkest brand color for impact; light neutral only if content is data-heavy
+- titleColor: must contrast sharply against backgroundColor
+- accentColor: use the most vibrant brand color — applied to bullets and the accent bar
+- bodyColor: white on dark backgrounds, dark on light backgrounds
+- all colors must be valid hex strings like #1A3A5C; if no brand colors detected, use professional neutral defaults
+
+Content rules:
+- Rewrite bullets to be punchy, parallel, and active — max 10 words each
+- Every bullet must be a standalone insight, not a sentence fragment
+- The subtitle should directly answer "why should the audience care right now?"
+- Always pick a logoId that reinforces the core message; only use null if truly nothing fits`;
 
     const userMessage = `Title: ${title}\nDescription: ${description}\nContent: ${content}`;
 
     const message = await client.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 800,
+      max_tokens: 1024,
       system: systemPrompt,
       messages: [{ role: 'user', content: userMessage }],
     });
@@ -81,7 +94,7 @@ Rules:
     const pptxBase64 = pptxBuffer.toString('base64');
 
     // Build HTML preview
-    const previewHtml = buildPreviewHtml(slideData, logos);
+    const previewHtml = buildPreviewHtml(slideData, logos, templateShapes);
 
     return Response.json({ previewHtml, pptxBase64 });
   } catch (err) {
@@ -100,7 +113,10 @@ function esc(str) {
     .replace(/'/g, '&#39;');
 }
 
-function buildPreviewHtml(s, logoManifest) {
+// Preview scale: PPTX LAYOUT_16x9 is 10" × 5.625"; preview canvas is 800px × 450px → 80 px/inch
+const PX_PER_INCH = 80;
+
+function buildPreviewHtml(s, logoManifest, templateShapes = []) {
   const bg = esc(s.backgroundColor || '#FFFFFF');
   const titleColor = esc(s.titleColor || '#000000');
   const bodyColor = esc(s.bodyColor || '#333333');
@@ -108,7 +124,19 @@ function buildPreviewHtml(s, logoManifest) {
   const headingFont = esc(s.headingFont || 'Calibri');
   const bodyFont = esc(s.bodyFont || 'Calibri');
 
-  // Logo
+  // Template shapes from the brand PPTX (rendered behind content)
+  const shapesHtml = templateShapes.map((shape) => {
+    const left = Math.round(shape.x * PX_PER_INCH);
+    const top = Math.round(shape.y * PX_PER_INCH);
+    const width = Math.round(shape.w * PX_PER_INCH);
+    const height = Math.round(shape.h * PX_PER_INCH);
+    const opacity = shape.transparency > 0 ? (1 - shape.transparency / 100).toFixed(2) : '1';
+    const rotate = shape.rotation ? `rotate(${shape.rotation}deg)` : '';
+    const fillColor = esc(shape.fillColor || '#000000');
+    return `<div style="position:absolute;left:${left}px;top:${top}px;width:${width}px;height:${height}px;background:${fillColor};opacity:${opacity};${rotate ? `transform:${rotate};` : ''}"></div>`;
+  }).join('');
+
+  // Logo / icon (top-right)
   let logoHtml = '';
   if (s.logoId) {
     const logoEntry = logoManifest.find((l) => l.id === s.logoId);
@@ -133,10 +161,14 @@ function buildPreviewHtml(s, logoManifest) {
       ).join('')
     : '';
 
+  const hasShapes = templateShapes.length > 0;
+  const accentBar = hasShapes ? '' : `<div style="position:absolute;top:0;left:0;width:8px;height:100%;background:${accentColor};"></div>`;
+
   return `<div style="width:800px;height:450px;background:${bg};position:relative;border-radius:8px;overflow:hidden;padding:40px 52px 40px 60px;box-sizing:border-box;">
-  <div style="position:absolute;top:0;left:0;width:8px;height:100%;background:${accentColor};"></div>
+  ${shapesHtml}
+  ${accentBar}
   ${logoHtml}
-  <div style="font-family:'${headingFont}',sans-serif;font-size:30px;font-weight:700;color:${titleColor};margin-bottom:10px;line-height:1.2;">${esc(s.title)}</div>
+  <div style="position:relative;font-family:'${headingFont}',sans-serif;font-size:30px;font-weight:700;color:${titleColor};margin-bottom:10px;line-height:1.2;">${esc(s.title)}</div>
   ${subtitleHtml}
   ${bulletsHtml}
 </div>`;
