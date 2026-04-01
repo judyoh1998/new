@@ -31,20 +31,19 @@ export default function Home() {
     setErrorMsg(null);
 
     // Parse PPTX in the browser — no file upload needed
-    let colors = [];
-    let fonts = [];
+    let colors = [], fonts = [], backgroundImage = null, templateShapes = [];
     try {
       const arrayBuffer = await brandFile.arrayBuffer();
-      ({ colors, fonts } = await parsePptx(arrayBuffer));
+      ({ colors, fonts, backgroundImage, templateShapes } = await parsePptx(arrayBuffer));
     } catch {
-      // Continue without brand colors if parsing fails
+      // Continue without brand assets if parsing fails
     }
 
     try {
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: form.title, description: form.description, content: form.content, colors, fonts }),
+        body: JSON.stringify({ title: form.title, description: form.description, content: form.content, colors, fonts, backgroundImage, templateShapes }),
       });
       const data = await res.json();
       if (!res.ok) {
