@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { parsePptx } from '../lib/parsePptx.js';
 
 export default function Home() {
   const [brandFile, setBrandFile] = useState(null);
@@ -29,14 +30,22 @@ export default function Home() {
     setPptxBase64(null);
     setErrorMsg(null);
 
-    const body = new FormData();
-    body.append('file', brandFile);
-    body.append('title', form.title);
-    body.append('description', form.description);
-    body.append('content', form.content);
+    // Parse PPTX in the browser — no file upload needed
+    let colors = [];
+    let fonts = [];
+    try {
+      const arrayBuffer = await brandFile.arrayBuffer();
+      ({ colors, fonts } = await parsePptx(arrayBuffer));
+    } catch {
+      // Continue without brand colors if parsing fails
+    }
 
     try {
-      const res = await fetch('/api/generate', { method: 'POST', body });
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: form.title, description: form.description, content: form.content, colors, fonts }),
+      });
       const data = await res.json();
       if (!res.ok) {
         setErrorMsg(data?.error || 'Unknown error');

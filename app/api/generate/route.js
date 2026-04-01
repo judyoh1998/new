@@ -1,5 +1,4 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { parsePptx } from '../../../lib/parsePptx.js';
 import { generatePptx } from '../../../lib/generatePptx.js';
 import { logos } from '../../../lib/assetManifest.js';
 
@@ -13,25 +12,10 @@ export async function POST(request) {
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
   try {
-    const formData = await request.formData();
-    const file = formData.get('file');
-    const title = formData.get('title')?.trim();
-    const description = formData.get('description')?.trim();
-    const content = formData.get('content')?.trim();
+    const { title, description, content, colors = [], fonts = [] } = await request.json();
 
-    if (!file || !title || !description || !content) {
-      return Response.json({ error: 'All fields and a brand PPTX file are required.' }, { status: 400 });
-    }
-
-    // Parse brand assets from the uploaded PPTX — fail gracefully if parsing errors
-    let colors = [];
-    let fonts = [];
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      ({ colors, fonts } = await parsePptx(buffer));
-    } catch (parseErr) {
-      console.warn('PPTX parsing failed, continuing without brand colors:', parseErr?.message);
+    if (!title?.trim() || !description?.trim() || !content?.trim()) {
+      return Response.json({ error: 'Title, description and content are required.' }, { status: 400 });
     }
 
     // Build Claude prompt
