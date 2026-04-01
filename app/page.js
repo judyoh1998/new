@@ -6,6 +6,7 @@ export default function Home() {
   const [brandFile, setBrandFile] = useState(null);
   const [form, setForm] = useState({ title: '', description: '', content: '' });
   const [status, setStatus] = useState(null); // 'loading' | 'success' | 'error' | 'validation'
+  const [errorMsg, setErrorMsg] = useState(null);
   const [previewHtml, setPreviewHtml] = useState(null);
   const [pptxBase64, setPptxBase64] = useState(null);
 
@@ -26,6 +27,7 @@ export default function Home() {
     setStatus('loading');
     setPreviewHtml(null);
     setPptxBase64(null);
+    setErrorMsg(null);
 
     const body = new FormData();
     body.append('file', brandFile);
@@ -37,13 +39,15 @@ export default function Home() {
       const res = await fetch('/api/generate', { method: 'POST', body });
       const data = await res.json();
       if (!res.ok) {
+        setErrorMsg(data?.error || 'Unknown error');
         setStatus('error');
         return;
       }
       setPreviewHtml(data.previewHtml);
       setPptxBase64(data.pptxBase64);
       setStatus('success');
-    } catch {
+    } catch (e) {
+      setErrorMsg(e?.message || 'Network error');
       setStatus('error');
     }
   }
@@ -124,7 +128,9 @@ export default function Home() {
 
         {status === 'no-file' && <p style={styles.error}>Please upload a brand PPTX file first.</p>}
         {status === 'validation' && <p style={styles.error}>Please fill in all fields before generating.</p>}
-        {status === 'error' && <p style={styles.error}>Something went wrong. Please try again.</p>}
+        {status === 'error' && (
+          <p style={styles.error}>{errorMsg || 'Something went wrong. Please try again.'}</p>
+        )}
       </div>
 
       {/* Preview */}

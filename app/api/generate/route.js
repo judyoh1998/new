@@ -3,9 +3,15 @@ import { parsePptx } from '../../../lib/parsePptx.js';
 import { generatePptx } from '../../../lib/generatePptx.js';
 import { logos } from '../../../lib/assetManifest.js';
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+export const maxDuration = 60;
 
 export async function POST(request) {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return Response.json({ error: 'ANTHROPIC_API_KEY is not configured in environment variables.' }, { status: 500 });
+  }
+
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
   try {
     const formData = await request.formData();
     const file = formData.get('file');
@@ -17,10 +23,16 @@ export async function POST(request) {
       return Response.json({ error: 'All fields and a brand PPTX file are required.' }, { status: 400 });
     }
 
-    // Parse brand assets from the uploaded PPTX
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const { colors, fonts } = await parsePptx(buffer);
+    // Parse brand assets from the uploaded PPTX — fail gracefully if parsing errors
+    let colors = [];
+    let fonts = [];
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      ({ colors, fonts } = await parsePptx(buffer));
+    } catch (parseErr) {
+      console.warn('PPTX parsing failed, continuing without brand colors:', parseErr?.message);
+    }
 
     // Build Claude prompt
     const colorList = colors.length > 0 ? colors.join(', ') : 'no brand colors detected';
@@ -84,7 +96,8 @@ Rules:
     return Response.json({ previewHtml, pptxBase64 });
   } catch (err) {
     console.error('Generate error:', err);
-    return Response.json({ error: 'Failed to generate slide. Please try again.' }, { status: 500 });
+    const message = err?.message || 'Unknown error';
+    return Response.json({ error: `Failed to generate slide: ${message}` }, { status: 500 });
   }
 }
 
