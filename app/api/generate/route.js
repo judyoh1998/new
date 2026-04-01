@@ -31,13 +31,13 @@ export async function POST(request) {
       ? logos.map((l) => `- ${l.id}: ${l.description}`).join('\n')
       : '(none available)';
 
-    // Describe extracted template shapes so Claude positions content appropriately
+    // Describe extracted template shapes with indices so Claude can intelligently select them
     const templateDescription = templateShapes.length > 0
-      ? `\nThe slide template has these overlay shapes extracted from the uploaded brand file:\n${
-          templateShapes.map(s =>
-            `- x:${s.x.toFixed(1)}", y:${s.y.toFixed(1)}", w:${s.w.toFixed(1)}", h:${s.h.toFixed(1)}", color:${s.fillColor}`
+      ? `\nExtracted template shapes (indexed 0-${templateShapes.length - 1}):\n${
+          templateShapes.map((s, idx) =>
+            `[${idx}] position: x:${s.x.toFixed(1)}", y:${s.y.toFixed(1)}", size: ${s.w.toFixed(1)}"×${s.h.toFixed(1)}", color:${s.fillColor}, rotation:${(s.rotation || 0).toFixed(1)}°`
           ).join('\n')
-        }\nPosition text title and bullets to sit within the largest overlay shape's area.`
+        }\n\nAnalyze each shape from a design and storytelling perspective. Which shapes enhance the slide visually and narratively? Return selectedShapeIndices as an array of indices to include (e.g. [0, 2, 4]). Return empty array [] if no shapes enhance the design.`
       : '';
 
     const systemPrompt = `You are a professional slide designer. Output only a single JSON object — no explanation, no markdown, no code fences.
@@ -61,14 +61,16 @@ Return exactly this JSON schema:
   "headingFont": "heading font name",
   "bodyFont": "body font name",
   "accentColor": "hex color from brand palette for decorative elements",
-  "logoId": "one of the available logo ids, or null"
+  "logoId": "one of the available logo ids, or null",
+  "selectedShapeIndices": [0, 1, 2]
 }
 
 Rules:
 - body must have 2–5 items, each max 12 words
 - All color values must be valid hex strings (e.g. #1A3A5C)
 - If no brand colors were detected, use professional neutral defaults
-- Choose logoId only if it genuinely fits the slide content; otherwise null`;
+- Choose logoId only if it genuinely fits the slide content; otherwise null
+- selectedShapeIndices: array of shape indices that enhance the design; empty array if none fit`;
 
     const userMessage = `Title: ${title}\nDescription: ${description}\nContent: ${content}`;
 
@@ -83,9 +85,9 @@ Rules:
     rawText = rawText.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim();
     const slideData = JSON.parse(rawText);
 
-    const pptxBuffer = await generatePptx(slideData, backgroundImage, templateShapes);
+    const pptxBuffer = await generatePptx(slideData, backgroundImage, templateShapes, slideData.selectedShapeIndices);
     const pptxBase64 = pptxBuffer.toString('base64');
-    const previewHtml = buildPreviewHtml(slideData, logos, backgroundImage, templateShapes);
+    const previewHtml = buildPreviewHtml(slideData, logos, backgroundImage, templateShapes, slideData.selectedShapeIndices);
 
     return Response.json({ previewHtml, pptxBase64 });
   } catch (err) {
@@ -114,23 +116,25 @@ function hexToRgb(hex) {
   return `${r},${g},${b}`;
 }
 
-function buildPreviewHtml(s, logoManifest, backgroundImage, templateShapes) {
+function buildPreviewHtml(s, logoManifest, backgroundImage, templateShapes, selectedShapeIndices = []) {
   const bg = esc(s.backgroundColor || '#FFFFFF');
   const titleColor = esc(s.titleColor || '#000000');
   const bodyColor = esc(s.bodyColor || '#333333');
   const accentColor = esc(s.accentColor || '#000000');
   const headingFont = esc(s.headingFont || 'Calibri');
   const bodyFont = esc(s.bodyFont || 'Calibri');
-  const hasShapes = templateShapes && templateShapes.length > 0;
+  const hasShapes = selectedShapeIndices && selectedShapeIndices.length > 0;
 
   // Background — photo if extracted, else solid color
   const bgStyle = backgroundImage
     ? `background-image:url(data:${backgroundImage.mimeType};base64,${backgroundImage.base64});background-size:cover;background-position:center;`
     : `background:${bg};`;
 
-  // Template shapes as absolutely-positioned divs
+  // Template shapes as absolutely-positioned divs — only render selected shapes
   const shapeDivs = hasShapes
-    ? templateShapes.map(shape => {
+    ? selectedShapeIndices.map(idx => {
+        const shape = templateShapes[idx];
+        if (!shape) return '';
         const left   = (shape.x / 10 * 100).toFixed(1);
         const top    = (shape.y / 5.625 * 100).toFixed(1);
         const width  = (shape.w / 10 * 100).toFixed(1);
@@ -142,7 +146,7 @@ function buildPreviewHtml(s, logoManifest, backgroundImage, templateShapes) {
       }).join('')
     : '';
 
-  // Accent bar — only shown when no template shapes
+  // Accent bar — only shown when no template shapes selected
   const accentBar = hasShapes
     ? ''
     : `<div style="position:absolute;top:0;left:0;width:8px;height:100%;background:${accentColor};"></div>`;
@@ -175,8 +179,5 @@ function buildPreviewHtml(s, logoManifest, backgroundImage, templateShapes) {
   ${shapeDivs}
   ${accentBar}
   ${logoHtml}
-  <div style="font-family:'${headingFont}',sans-serif;font-size:30px;font-weight:700;color:${titleColor};margin-bottom:10px;line-height:1.2;position:relative;z-index:2;">${esc(s.title)}</div>
-  ${subtitleHtml}
-  ${bulletsHtml}
-</div>`;
-}
+  <div style="font-family:'${headingFont}',sans-serif;font-size:30px;font-weight:700;color:${titleColor};margin-bottom:10`*
+
