@@ -31,34 +31,7 @@ export async function POST(request) {
       ? logos.map((l) => `- ${l.id}: ${l.description}`).join('\n')
       : '(none available)';
 
-    const systemPrompt = `You are a professional slide designer. Output only a single JSON object — no explanation, no markdown, no code fences.
-
-Brand colors (in order of prominence): ${colorList}
-Brand fonts — heading: ${headingFont}, body: ${bodyFont}
-
-Available logos:
-${logoList}
-
-Return exactly this JSON schema:
-{
-  "title": "string — refined slide headline",
-  "subtitle": "string or null — optional subtitle, max 15 words",
-  "body": ["string", "..."],
-  "layout": "title-only" | "title-body" | "title-subtitle-body",
-  "backgroundColor": "hex color from brand palette",
-  "titleColor": "hex color from brand palette",
-  "bodyColor": "hex color from brand palette",
-  "headingFont": "heading font name",
-  "bodyFont": "body font name",
-  "accentColor": "hex color from brand palette for decorative elements",
-  "logoId": "one of the available logo ids, or null"
-}
-
-Rules:
-- body must have 2–5 items, each max 12 words
-- All color values must be valid hex strings (e.g. #1A3A5C)
-- If no brand colors were detected, use professional neutral defaults
-- Choose logoId only if it genuinely fits the slide content; otherwise null`;
+    const systemPrompt = `You are a professional slide designer. Output only a single JSON object — no explanation, no markdown, no code fences.\n\nBrand colors (in order of prominence): ${colorList}\nBrand fonts — heading: ${headingFont}, body: ${bodyFont}\n\nAvailable logos:\n${logoList}\n\nReturn exactly this JSON schema:\n{\n  "title": "string — refined slide headline",\n  "subtitle": "string or null — optional subtitle, max 15 words",\n  "body": ["string", "..."],\n  "layout": "title-only" | "title-body" | "title-subtitle-body",\n  "backgroundColor": "hex color from brand palette",\n  "titleColor": "hex color from brand palette",\n  "bodyColor": "hex color from brand palette",\n  "headingFont": "heading font name",\n  "bodyFont": "body font name",\n  "accentColor": "hex color from brand palette for decorative elements",\n  "logoId": "one of the available logo ids, or null"\n}\n\nRules:\n- body must have 2–5 items, each max 12 words\n- All color values must be valid hex strings (e.g. #1A3A5C)\n- If no brand colors were detected, use professional neutral defaults\n- Choose logoId only if it genuinely fits the slide content; otherwise null`;
 
     const userMessage = `Title: ${title}\nDescription: ${description}\nContent: ${content}`;
 
@@ -72,7 +45,14 @@ Rules:
     // Parse Claude's JSON response
     let rawText = message.content[0]?.text || '';
     rawText = rawText.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim();
-    const slideData = JSON.parse(rawText);
+    
+    let slideData;
+    try {
+      slideData = JSON.parse(rawText);
+    } catch (parseErr) {
+      console.error('JSON parse error:', parseErr, 'Raw text:', rawText);
+      return Response.json({ error: 'Invalid response format from AI.' }, { status: 500 });
+    }
 
     // Generate PPTX
     const pptxBuffer = await generatePptx(slideData);
