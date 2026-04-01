@@ -1,35 +1,65 @@
 'use client';
 
 import { useState } from 'react';
-import { supabase } from '../lib/supabase';
 
 export default function Home() {
+  const [brandFile, setBrandFile] = useState(null);
   const [form, setForm] = useState({ title: '', description: '', content: '' });
-  const [status, setStatus] = useState(null); // 'loading' | 'success' | 'error'
+  const [status, setStatus] = useState(null); // 'loading' | 'success' | 'error' | 'validation'
+  const [previewHtml, setPreviewHtml] = useState(null);
+  const [pptxBase64, setPptxBase64] = useState(null);
 
   function handleChange(e) {
     setForm({ ...form, [e.target.name]: e.target.value });
   }
 
   async function handleGenerate() {
+    if (!brandFile) {
+      setStatus('no-file');
+      return;
+    }
     if (!form.title.trim() || !form.description.trim() || !form.content.trim()) {
       setStatus('validation');
       return;
     }
+
     setStatus('loading');
-    const { error } = await supabase.from('slides').insert([
-      {
-        title: form.title,
-        description: form.description,
-        content: form.content,
-      },
-    ]);
-    if (error) {
-      setStatus('error');
-    } else {
+    setPreviewHtml(null);
+    setPptxBase64(null);
+
+    const body = new FormData();
+    body.append('file', brandFile);
+    body.append('title', form.title);
+    body.append('description', form.description);
+    body.append('content', form.content);
+
+    try {
+      const res = await fetch('/api/generate', { method: 'POST', body });
+      const data = await res.json();
+      if (!res.ok) {
+        setStatus('error');
+        return;
+      }
+      setPreviewHtml(data.previewHtml);
+      setPptxBase64(data.pptxBase64);
       setStatus('success');
-      setForm({ title: '', description: '', content: '' });
+    } catch {
+      setStatus('error');
     }
+  }
+
+  function handleDownload() {
+    if (!pptxBase64) return;
+    const bytes = Uint8Array.from(atob(pptxBase64), (c) => c.charCodeAt(0));
+    const blob = new Blob([bytes], {
+      type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${form.title || 'slide'}.pptx`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -37,6 +67,21 @@ export default function Home() {
       <div style={styles.card}>
         <h1 style={styles.heading}>Slide Generator</h1>
 
+        {/* Brand file upload */}
+        <label style={styles.label}>Brand File (.pptx)</label>
+        <input
+          type="file"
+          accept=".pptx"
+          onChange={(e) => setBrandFile(e.target.files?.[0] || null)}
+          style={styles.fileInput}
+        />
+        {brandFile && (
+          <p style={styles.fileNote}>{brandFile.name}</p>
+        )}
+
+        <div style={styles.divider} />
+
+        {/* Slide form */}
         <label style={styles.label}>Slide Title</label>
         <input
           name="title"
@@ -77,16 +122,28 @@ export default function Home() {
           {status === 'loading' ? 'Generating...' : 'Generate'}
         </button>
 
-        {status === 'validation' && (
-          <p style={styles.error}>Please fill in all fields before generating.</p>
-        )}
-        {status === 'success' && (
-          <p style={styles.success}>Slide saved successfully!</p>
-        )}
-        {status === 'error' && (
-          <p style={styles.error}>Something went wrong. Please try again.</p>
-        )}
+        {status === 'no-file' && <p style={styles.error}>Please upload a brand PPTX file first.</p>}
+        {status === 'validation' && <p style={styles.error}>Please fill in all fields before generating.</p>}
+        {status === 'error' && <p style={styles.error}>Something went wrong. Please try again.</p>}
       </div>
+
+      {/* Preview */}
+      {previewHtml && (
+        <div style={styles.previewCard}>
+          <div style={styles.previewHeader}>
+            <span style={styles.previewLabel}>Preview</span>
+            <button onClick={handleDownload} style={styles.downloadButton}>
+              Download .pptx
+            </button>
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <div
+              style={{ transform: 'scale(0.75)', transformOrigin: 'top left', width: 800, height: 450 }}
+              dangerouslySetInnerHTML={{ __html: previewHtml }}
+            />
+          </div>
+        </div>
+      )}
     </main>
   );
 }
@@ -95,9 +152,10 @@ const styles = {
   main: {
     minHeight: '100vh',
     display: 'flex',
+    flexDirection: 'column',
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: '24px',
+    padding: '40px 24px',
+    gap: '24px',
   },
   card: {
     background: '#fff',
@@ -132,6 +190,21 @@ const styles = {
     boxSizing: 'border-box',
     marginTop: '4px',
   },
+  fileInput: {
+    marginTop: '6px',
+    fontSize: '14px',
+    color: '#444',
+  },
+  fileNote: {
+    margin: '4px 0 0',
+    fontSize: '13px',
+    color: '#666',
+  },
+  divider: {
+    height: '1px',
+    background: '#eee',
+    margin: '16px 0 4px',
+  },
   button: {
     marginTop: '24px',
     padding: '12px',
@@ -143,14 +216,38 @@ const styles = {
     borderRadius: '8px',
     width: '100%',
   },
-  success: {
-    color: '#2e7d32',
-    fontSize: '14px',
-    marginTop: '8px',
-  },
   error: {
     color: '#c62828',
     fontSize: '14px',
     marginTop: '8px',
+  },
+  previewCard: {
+    background: '#fff',
+    borderRadius: '12px',
+    padding: '24px',
+    width: '100%',
+    maxWidth: '640px',
+    boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+  },
+  previewHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '16px',
+  },
+  previewLabel: {
+    fontSize: '14px',
+    fontWeight: '600',
+    color: '#444',
+  },
+  downloadButton: {
+    padding: '8px 16px',
+    fontSize: '13px',
+    fontWeight: '600',
+    background: '#111',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
   },
 };
