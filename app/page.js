@@ -77,10 +77,10 @@ export default function Home() {
   return (
     <main style={styles.main}>
       <div style={styles.card}>
-        <h1 style={styles.heading}>Slide Generator</h1>
+        <h1 style={styles.heading}>SNV Slide Generator</h1>
 
         {/* Brand file upload */}
-        <label style={styles.label}>Brand File (.pptx)</label>
+        <label style={styles.label}>Reference File (.pptx)</label>
         <input
           type="file"
           accept=".pptx"
@@ -103,7 +103,7 @@ export default function Home() {
           style={styles.input}
         />
 
-        <label style={styles.label}>Slide Description</label>
+        <label style={styles.label}>Short Description of Your Slide!</label>
         <input
           name="description"
           value={form.description}
