@@ -32,9 +32,12 @@ Return only a single valid JSON object matching this exact schema. No explanatio
 
 {
   "layout": "title-subtitle-body",
+  "label": null,
   "title": "Sharp, compelling slide title",
   "subtitle": "One sentence framing why this matters to the audience",
   "body": ["Punchy insight one", "Punchy insight two", "Punchy insight three"],
+  "sections": null,
+  "stats": null,
   "backgroundColor": "#1A3A5C",
   "titleColor": "#F0A500",
   "bodyColor": "#FFFFFF",
@@ -53,12 +56,20 @@ ${logoList}
 Layout guide:
 - "title-only": bold single statement, section break, or striking statistic
 - "title-body": facts or data points that stand on their own without extra framing
-- "title-subtitle-body": use when a subtitle reframes the audience's perspective or adds the "so what"
+- "title-subtitle-body": subtitle reframes the audience's perspective or adds the "so what"
+- "title-sections": content has 2–3 named groups (Challenge/Solution, Before/After, Problem/Approach/Outcome) — use sections array, set body to null
+- "title-stats": the story IS the numbers — use stats array, set body to null
+- "title-subtitle-stats": subtitle + big numbers for context-then-proof flow
+
+Content field guide:
+- label: optional ALL-CAPS eyebrow text (e.g. "CASE STUDY #1", "KEY FINDING", "PHASE 2") — use when content has a clear category or series label; otherwise null
+- sections: array of { header, bullets } when content splits into 2–3 named groups; set body to null when using sections
+- stats: array of { value, label } for 2–4 big numbers that prove the point; can appear alongside sections
 
 Color rules:
 - backgroundColor: use the darkest brand color for impact; light neutral only if content is data-heavy
 - titleColor: must contrast sharply against backgroundColor
-- accentColor: use the most vibrant brand color — applied to bullets and the accent bar
+- accentColor: use the most vibrant brand color — applied to section headers, stats, bullets, and accent bar
 - bodyColor: white on dark backgrounds, dark on light backgrounds
 - all colors must be valid hex strings like #1A3A5C; if no brand colors detected, use professional neutral defaults
 
@@ -94,7 +105,7 @@ Content rules:
     const pptxBase64 = pptxBuffer.toString('base64');
 
     // Build HTML preview
-    const previewHtml = buildPreviewHtml(slideData, logos, templateShapes);
+    const previewHtml = buildPreviewHtml(slideData, logos, templateShapes, backgroundImage);
 
     return Response.json({ previewHtml, pptxBase64 });
   } catch (err) {
@@ -116,13 +127,18 @@ function esc(str) {
 // Preview scale: PPTX LAYOUT_16x9 is 10" × 5.625"; preview canvas is 800px × 450px → 80 px/inch
 const PX_PER_INCH = 80;
 
-function buildPreviewHtml(s, logoManifest, templateShapes = []) {
+function buildPreviewHtml(s, logoManifest, templateShapes = [], backgroundImage = null) {
   const bg = esc(s.backgroundColor || '#FFFFFF');
   const titleColor = esc(s.titleColor || '#000000');
   const bodyColor = esc(s.bodyColor || '#333333');
   const accentColor = esc(s.accentColor || '#000000');
   const headingFont = esc(s.headingFont || 'Calibri');
   const bodyFont = esc(s.bodyFont || 'Calibri');
+
+  // Background — photo takes priority over solid color
+  const bgStyle = backgroundImage?.base64
+    ? `background-image:url('data:${esc(backgroundImage.mimeType)};base64,${backgroundImage.base64}');background-size:cover;background-position:center;`
+    : `background:${bg};`;
 
   // Template shapes from the brand PPTX (rendered behind content)
   const shapesHtml = templateShapes.map((shape) => {
@@ -131,9 +147,9 @@ function buildPreviewHtml(s, logoManifest, templateShapes = []) {
     const width = Math.round(shape.w * PX_PER_INCH);
     const height = Math.round(shape.h * PX_PER_INCH);
     const opacity = shape.transparency > 0 ? (1 - shape.transparency / 100).toFixed(2) : '1';
-    const rotate = shape.rotation ? `rotate(${shape.rotation}deg)` : '';
+    const rotate = shape.rotation ? `transform:rotate(${shape.rotation}deg);` : '';
     const fillColor = esc(shape.fillColor || '#000000');
-    return `<div style="position:absolute;left:${left}px;top:${top}px;width:${width}px;height:${height}px;background:${fillColor};opacity:${opacity};${rotate ? `transform:${rotate};` : ''}"></div>`;
+    return `<div style="position:absolute;left:${left}px;top:${top}px;width:${width}px;height:${height}px;background:${fillColor};opacity:${opacity};${rotate}"></div>`;
   }).join('');
 
   // Logo / icon (top-right)
@@ -146,12 +162,17 @@ function buildPreviewHtml(s, logoManifest, templateShapes = []) {
     }
   }
 
+  // Label (eyebrow text)
+  const labelHtml = s.label
+    ? `<div style="font-family:'${headingFont}',sans-serif;font-size:11px;font-weight:600;color:${accentColor};letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;">${esc(s.label)}</div>`
+    : '';
+
   // Subtitle
   const subtitleHtml = s.subtitle
     ? `<div style="font-family:'${headingFont}',sans-serif;font-size:16px;font-style:italic;color:${bodyColor};margin-bottom:16px;">${esc(s.subtitle)}</div>`
     : '';
 
-  // Bullets
+  // Flat bullets
   const bulletsHtml = Array.isArray(s.body) && s.body.length > 0
     ? s.body.map((b) =>
         `<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;">
@@ -161,15 +182,45 @@ function buildPreviewHtml(s, logoManifest, templateShapes = []) {
       ).join('')
     : '';
 
+  // Sections (named groups with sub-headers)
+  const sectionsHtml = Array.isArray(s.sections) && s.sections.length > 0
+    ? s.sections.map((section) =>
+        `<div style="margin-bottom:10px;">
+           <div style="font-family:'${headingFont}',sans-serif;font-size:15px;font-weight:700;color:${accentColor};margin-bottom:5px;">${esc(section.header)}</div>
+           ${(section.bullets || []).map((b) =>
+             `<div style="display:flex;align-items:flex-start;gap:7px;margin-bottom:4px;">
+                <span style="width:5px;height:5px;border-radius:50%;background:${accentColor};flex-shrink:0;margin-top:5px;"></span>
+                <span style="font-family:'${bodyFont}',sans-serif;font-size:13px;color:${bodyColor};">${esc(b)}</span>
+              </div>`).join('')}
+         </div>`).join('')
+    : '';
+
+  const contentHtml = sectionsHtml || bulletsHtml;
+
+  // Stats (big numbers anchored to bottom)
+  const statsHtml = Array.isArray(s.stats) && s.stats.length > 0
+    ? `<div style="display:flex;gap:32px;position:absolute;bottom:24px;left:60px;right:52px;">
+         ${s.stats.map((stat) =>
+           `<div>
+              <div style="font-family:'${headingFont}',sans-serif;font-size:32px;font-weight:700;color:${accentColor};line-height:1;">${esc(stat.value)}</div>
+              <div style="font-family:'${bodyFont}',sans-serif;font-size:11px;color:${bodyColor};margin-top:4px;max-width:180px;">${esc(stat.label)}</div>
+            </div>`).join('')}
+       </div>`
+    : '';
+
   const hasShapes = templateShapes.length > 0;
   const accentBar = hasShapes ? '' : `<div style="position:absolute;top:0;left:0;width:8px;height:100%;background:${accentColor};"></div>`;
 
-  return `<div style="width:800px;height:450px;background:${bg};position:relative;border-radius:8px;overflow:hidden;padding:40px 52px 40px 60px;box-sizing:border-box;">
+  return `<div style="width:800px;height:450px;${bgStyle}position:relative;border-radius:8px;overflow:hidden;padding:40px 52px 40px 60px;box-sizing:border-box;">
   ${shapesHtml}
   ${accentBar}
   ${logoHtml}
-  <div style="position:relative;font-family:'${headingFont}',sans-serif;font-size:30px;font-weight:700;color:${titleColor};margin-bottom:10px;line-height:1.2;">${esc(s.title)}</div>
-  ${subtitleHtml}
-  ${bulletsHtml}
+  <div style="position:relative;">
+    ${labelHtml}
+    <div style="font-family:'${headingFont}',sans-serif;font-size:30px;font-weight:700;color:${titleColor};margin-bottom:10px;line-height:1.2;">${esc(s.title)}</div>
+    ${subtitleHtml}
+    ${contentHtml}
+  </div>
+  ${statsHtml}
 </div>`;
 }
