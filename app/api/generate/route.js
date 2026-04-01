@@ -6,7 +6,7 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function POST(request) {
   try {
-    const { title: rawTitle, description: rawDescription, content: rawContent, colors = [], fonts = [] } = await request.json();
+    const { title: rawTitle, description: rawDescription, content: rawContent, colors = [], fonts = [], backgroundImage = null, templateShapes = [] } = await request.json();
     const title = rawTitle?.trim();
     const description = rawDescription?.trim();
     const content = rawContent?.trim();
@@ -77,7 +77,7 @@ Rules:
     }
 
     // Generate PPTX
-    const pptxBuffer = await generatePptx(slideData);
+    const pptxBuffer = await generatePptx(slideData, backgroundImage, templateShapes);
     const pptxBase64 = pptxBuffer.toString('base64');
 
     // Build HTML preview
