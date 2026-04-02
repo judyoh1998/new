@@ -58,7 +58,10 @@ Rules:
 
     // Parse Claude's JSON response
     let rawText = message.content[0]?.text || '';
-    rawText = rawText.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim();
+    rawText = rawText
+      .replace(/^[\s\S]*?```(?:json)?\s*/i, '') 
+      .replace(/\s*```[\s\S]*$/, '')
+      .trim();
     
     let slideData;
     try {
