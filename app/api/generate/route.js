@@ -126,7 +126,7 @@ function buildPreviewHtml(s, logoManifest, backgroundImage) {
   const headingFont = esc(s.headingFont || 'Calibri');
   const bodyFont = esc(s.bodyFont || 'Calibri');
 
-  const containerBg = hasBg ? `background:#000;` : `background:${esc(s.accentColor || '#1A3A5C')};`;
+  const containerBg = hasBg ? `background:#000;` : `background:#ffffff;`;
   // Use an <img> tag (not CSS background-image) so html2canvas can capture it reliably
   const bgImgHtml = hasBg
     ? `<img src="data:image/jpeg;base64,${backgroundImage.base64}" alt="" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:0;">`
