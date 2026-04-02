@@ -61,7 +61,9 @@ export default function Home() {
 
   async function handleDownloadPng() {
     if (!previewRef.current) return;
-    const canvas = await html2canvas(previewRef.current, {
+    // firstChild is the actual 800×450 content div; previewRef itself has scale(0.75) applied
+    const target = previewRef.current.firstChild || previewRef.current;
+    const canvas = await html2canvas(target, {
       scale: 2,
       useCORS: true,
       allowTaint: true,

@@ -126,9 +126,11 @@ function buildPreviewHtml(s, logoManifest, backgroundImage) {
   const headingFont = esc(s.headingFont || 'Calibri');
   const bodyFont = esc(s.bodyFont || 'Calibri');
 
-  const bgStyle = hasBg
-    ? `background-image:url('data:image/jpeg;base64,${backgroundImage.base64}');background-size:cover;background-position:center;`
-    : `background:${esc(s.accentColor || '#1A3A5C')};`;
+  const containerBg = hasBg ? `background:#000;` : `background:${esc(s.accentColor || '#1A3A5C')};`;
+  // Use an <img> tag (not CSS background-image) so html2canvas can capture it reliably
+  const bgImgHtml = hasBg
+    ? `<img src="data:image/jpeg;base64,${backgroundImage.base64}" alt="" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:0;">`
+    : '';
 
   // Overlay helper for text legibility over background images
   const overlay = (content, extra = '') =>
@@ -232,10 +234,13 @@ function buildPreviewHtml(s, logoManifest, backgroundImage) {
        </div>`
     : `${titleHtml}${subtitleHtml}`;
 
-  return `<div style="width:800px;height:450px;${bgStyle}position:relative;border-radius:8px;overflow:hidden;padding:36px 48px 36px 56px;box-sizing:border-box;">
+  return `<div style="width:800px;height:450px;${containerBg}position:relative;border-radius:8px;overflow:hidden;box-sizing:border-box;">
+  ${bgImgHtml}
+  <div style="position:relative;z-index:1;padding:36px 48px 36px 56px;height:100%;box-sizing:border-box;">
   ${accentBar}
   ${logoHtml}
   ${titleBlock}
   ${contentHtml}
+  </div>
 </div>`;
 }
