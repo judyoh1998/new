@@ -43,7 +43,6 @@ ${logoList}
 Allowed values for "layout": "title-only", "title-body", "title-subtitle-body".
 
 Rules:
-- body must have 2 to 5 items
 - all colors must be valid hex strings like #1A3A5C
 - if no brand colors were detected, use professional neutral defaults
 - choose logoId only if it genuinely fits the content; otherwise null`;
