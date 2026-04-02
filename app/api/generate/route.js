@@ -73,10 +73,17 @@ Color rules:
 - bodyColor: white on dark backgrounds, dark on light backgrounds
 - all colors must be valid hex strings like #1A3A5C; if no brand colors detected, use professional neutral defaults
 
+Word limits — these are hard limits, count the words:
+- title: 5–7 words maximum
+- subtitle: 10–14 words maximum
+- each bullet: 7–9 words maximum, NO conjunctions joining two ideas
+- section headers: 1–3 words maximum
+- stat labels: 4–7 words maximum
+
 Content rules:
-- Rewrite bullets to be punchy, parallel, and active — max 10 words each
-- Every bullet must be a standalone insight, not a sentence fragment
-- The subtitle should directly answer "why should the audience care right now?"
+- Rewrite and SHORTEN the provided content to meet the word limits above
+- Every bullet must be one standalone insight, active voice
+- The subtitle answers "why should the audience care right now?" in one tight phrase
 - Always pick a logoId that reinforces the core message; only use null if truly nothing fits`;
 
     const userMessage = `Title: ${title}\nDescription: ${description}\nContent: ${content}`;
@@ -140,8 +147,19 @@ function buildPreviewHtml(s, logoManifest, templateShapes = [], backgroundImage 
     ? `background-image:url('data:${esc(backgroundImage.mimeType)};base64,${backgroundImage.base64}');background-size:cover;background-position:center;`
     : `background:${bg};`;
 
-  // Template shapes from the brand PPTX (rendered behind content)
-  const shapesHtml = templateShapes.map((shape) => {
+  // Template shapes — filter large shapes that sit in the main content zone
+  // (they obscure text and are usually placeholders that slipped through XML parsing)
+  const renderableShapes = templateShapes.filter((shape) => {
+    if (shape.w > 3 && shape.h > 1.5) {
+      const cX1 = 0.3, cY1 = 0.8, cX2 = 9.7, cY2 = 4.5;
+      const overlapW = Math.max(0, Math.min(shape.x + shape.w, cX2) - Math.max(shape.x, cX1));
+      const overlapH = Math.max(0, Math.min(shape.y + shape.h, cY2) - Math.max(shape.y, cY1));
+      if (overlapW * overlapH > 2.0) return false; // sq inches
+    }
+    return true;
+  });
+
+  const shapesHtml = renderableShapes.map((shape) => {
     const left = Math.round(shape.x * PX_PER_INCH);
     const top = Math.round(shape.y * PX_PER_INCH);
     const width = Math.round(shape.w * PX_PER_INCH);
@@ -164,20 +182,20 @@ function buildPreviewHtml(s, logoManifest, templateShapes = [], backgroundImage 
 
   // Label (eyebrow text)
   const labelHtml = s.label
-    ? `<div style="font-family:'${headingFont}',sans-serif;font-size:11px;font-weight:600;color:${accentColor};letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;">${esc(s.label)}</div>`
+    ? `<div style="font-family:'${headingFont}',sans-serif;font-size:10px;font-weight:700;color:${accentColor};letter-spacing:2.5px;text-transform:uppercase;margin-bottom:4px;">${esc(s.label)}</div>`
     : '';
 
-  // Subtitle
+  // Subtitle — clamped to 2 lines max
   const subtitleHtml = s.subtitle
-    ? `<div style="font-family:'${headingFont}',sans-serif;font-size:16px;font-style:italic;color:${bodyColor};margin-bottom:16px;">${esc(s.subtitle)}</div>`
+    ? `<div style="font-family:'${headingFont}',sans-serif;font-size:13px;font-style:italic;color:${bodyColor};margin-bottom:12px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${esc(s.subtitle)}</div>`
     : '';
 
   // Flat bullets
   const bulletsHtml = Array.isArray(s.body) && s.body.length > 0
     ? s.body.map((b) =>
-        `<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;">
-           <span style="width:7px;height:7px;border-radius:50%;background:${accentColor};flex-shrink:0;margin-top:5px;"></span>
-           <span style="font-family:'${bodyFont}',sans-serif;font-size:14px;color:${bodyColor};">${esc(b)}</span>
+        `<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;">
+           <span style="width:6px;height:6px;border-radius:50%;background:${accentColor};flex-shrink:0;margin-top:4px;"></span>
+           <span style="font-family:'${bodyFont}',sans-serif;font-size:13px;line-height:1.4;color:${bodyColor};">${esc(b)}</span>
          </div>`
       ).join('')
     : '';
@@ -185,12 +203,12 @@ function buildPreviewHtml(s, logoManifest, templateShapes = [], backgroundImage 
   // Sections (named groups with sub-headers)
   const sectionsHtml = Array.isArray(s.sections) && s.sections.length > 0
     ? s.sections.map((section) =>
-        `<div style="margin-bottom:10px;">
-           <div style="font-family:'${headingFont}',sans-serif;font-size:15px;font-weight:700;color:${accentColor};margin-bottom:5px;">${esc(section.header)}</div>
+        `<div style="margin-bottom:8px;">
+           <div style="font-family:'${headingFont}',sans-serif;font-size:13px;font-weight:700;color:${accentColor};margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;">${esc(section.header)}</div>
            ${(section.bullets || []).map((b) =>
-             `<div style="display:flex;align-items:flex-start;gap:7px;margin-bottom:4px;">
-                <span style="width:5px;height:5px;border-radius:50%;background:${accentColor};flex-shrink:0;margin-top:5px;"></span>
-                <span style="font-family:'${bodyFont}',sans-serif;font-size:13px;color:${bodyColor};">${esc(b)}</span>
+             `<div style="display:flex;align-items:flex-start;gap:7px;margin-bottom:3px;">
+                <span style="width:4px;height:4px;border-radius:50%;background:${accentColor};flex-shrink:0;margin-top:5px;"></span>
+                <span style="font-family:'${bodyFont}',sans-serif;font-size:12px;line-height:1.35;color:${bodyColor};">${esc(b)}</span>
               </div>`).join('')}
          </div>`).join('')
     : '';
@@ -202,22 +220,22 @@ function buildPreviewHtml(s, logoManifest, templateShapes = [], backgroundImage 
     ? `<div style="display:flex;gap:32px;position:absolute;bottom:24px;left:60px;right:52px;">
          ${s.stats.map((stat) =>
            `<div>
-              <div style="font-family:'${headingFont}',sans-serif;font-size:32px;font-weight:700;color:${accentColor};line-height:1;">${esc(stat.value)}</div>
-              <div style="font-family:'${bodyFont}',sans-serif;font-size:11px;color:${bodyColor};margin-top:4px;max-width:180px;">${esc(stat.label)}</div>
+              <div style="font-family:'${headingFont}',sans-serif;font-size:28px;font-weight:700;color:${accentColor};line-height:1;">${esc(stat.value)}</div>
+              <div style="font-family:'${bodyFont}',sans-serif;font-size:10px;color:${bodyColor};margin-top:3px;max-width:160px;line-height:1.3;">${esc(stat.label)}</div>
             </div>`).join('')}
        </div>`
     : '';
 
-  const hasShapes = templateShapes.length > 0;
-  const accentBar = hasShapes ? '' : `<div style="position:absolute;top:0;left:0;width:8px;height:100%;background:${accentColor};"></div>`;
+  const hasShapes = renderableShapes.length > 0;
+  const accentBar = hasShapes ? '' : `<div style="position:absolute;top:0;left:0;width:6px;height:100%;background:${accentColor};"></div>`;
 
-  return `<div style="width:800px;height:450px;${bgStyle}position:relative;border-radius:8px;overflow:hidden;padding:40px 52px 40px 60px;box-sizing:border-box;">
+  return `<div style="width:800px;height:450px;${bgStyle}position:relative;border-radius:8px;overflow:hidden;padding:36px 48px 36px 56px;box-sizing:border-box;">
   ${shapesHtml}
   ${accentBar}
   ${logoHtml}
-  <div style="position:relative;">
+  <div style="position:relative;max-height:370px;overflow:hidden;">
     ${labelHtml}
-    <div style="font-family:'${headingFont}',sans-serif;font-size:30px;font-weight:700;color:${titleColor};margin-bottom:10px;line-height:1.2;">${esc(s.title)}</div>
+    <div style="font-family:'${headingFont}',sans-serif;font-size:26px;font-weight:700;color:${titleColor};margin-bottom:8px;line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${esc(s.title)}</div>
     ${subtitleHtml}
     ${contentHtml}
   </div>
