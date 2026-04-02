@@ -35,7 +35,23 @@ Allowed values for "layout": "title-only", "title-body", "title-subtitle-body".
 Rules:
 - all colors must be valid hex strings like #1A3A5C
 - if no brand colors were detected, use professional neutral defaults
-- choose logoId only if it genuinely fits the content; otherwise null`;
+- choose logoId only if it genuinely fits the content; otherwise null
+
+JSON schema (use exactly these field names):
+{
+  "layout": "title-only" | "title-body" | "title-subtitle-body",
+  "title": string,
+  "subtitle": string | null,
+  "body": string[],
+  "backgroundColor": hex string,
+  "titleColor": hex string,
+  "bodyColor": hex string,
+  "accentColor": hex string,
+  "headingFont": string,
+  "bodyFont": string,
+  "titleBold": boolean,
+  "logoId": string | null
+}`;
 
     const userMessage = `Title: ${title}\nDescription: ${description}\nContent: ${content}`;
 
