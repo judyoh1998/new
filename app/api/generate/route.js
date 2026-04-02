@@ -6,19 +6,14 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function POST(request) {
   try {
-    const { title: rawTitle, description: rawDescription, content: rawContent, colors = [], fonts = [], backgroundImage = null, templateShapes = [] } = await request.json();
+    const { title: rawTitle, description: rawDescription, content: rawContent, imageBase64 = null, imageMimeType = null } = await request.json();
     const title = rawTitle?.trim();
     const description = rawDescription?.trim();
     const content = rawContent?.trim();
 
     if (!title || !description || !content) {
-      return Response.json({ error: 'All fields and a brand PPTX file are required.' }, { status: 400 });
+      return Response.json({ error: 'All fields and a reference image are required.' }, { status: 400 });
     }
-
-    // Build Claude prompt
-    const colorList = colors.length > 0 ? colors.join(', ') : 'no brand colors detected';
-    const headingFont = fonts[0] || 'Calibri';
-    const bodyFont = fonts[1] || fonts[0] || 'Calibri';
 
     const logoList = logos.length > 0
       ? logos.map((l) => `- ${l.id}: ${l.description}`).join('\n')
@@ -27,26 +22,31 @@ export async function POST(request) {
     const systemPrompt = `You are a professional slide designer.
 Return only a single valid JSON object. No explanation, no markdown, no code fences.
 
-Brand colors: ${colorList}
-Brand fonts: heading ${headingFont}, body ${bodyFont}
+${imageBase64 ? 'A reference slide image is provided. Extract the brand colors (as hex codes), fonts, and style from it and apply them to the new slide.' : 'No reference image provided — use professional neutral defaults.'}
 
 Available logos:
 ${logoList}
 
 Allowed values for "layout": "title-only", "title-body", "title-subtitle-body".
 
+JSON fields required: title, subtitle (or null), body (array of strings), backgroundColor, titleColor, bodyColor, accentColor, headingFont, bodyFont, layout, logoId (or null).
+
 Rules:
 - all colors must be valid hex strings like #1A3A5C
-- if no brand colors were detected, use professional neutral defaults
+- extract real brand colors from the reference image; do not default to black
 - choose logoId only if it genuinely fits the content; otherwise null`;
 
-    const userMessage = `Title: ${title}\nDescription: ${description}\nContent: ${content}`;
+    const userContent = [];
+    if (imageBase64 && imageMimeType) {
+      userContent.push({ type: 'image', source: { type: 'base64', media_type: imageMimeType, data: imageBase64 } });
+    }
+    userContent.push({ type: 'text', text: `Title: ${title}\nDescription: ${description}\nContent: ${content}` });
 
     const message = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 800,
       system: systemPrompt,
-      messages: [{ role: 'user', content: userMessage }],
+      messages: [{ role: 'user', content: userContent }],
     });
 
     // Parse Claude's JSON response

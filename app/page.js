@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { parsePptx } from '../lib/parsePptx.js';
 
 export default function Home() {
   const [brandFile, setBrandFile] = useState(null);
@@ -30,20 +29,28 @@ export default function Home() {
     setPptxBase64(null);
     setErrorMsg(null);
 
-    // Parse PPTX in the browser — no file upload needed
-    let colors = [], fonts = [], backgroundImage = null, templateShapes = [];
+    // Read reference image as base64
+    let imageBase64 = null;
+    let imageMimeType = null;
     try {
-      const arrayBuffer = await brandFile.arrayBuffer();
-      ({ colors, fonts, backgroundImage, templateShapes } = await parsePptx(arrayBuffer));
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(brandFile);
+      });
+      const [header, b64] = dataUrl.split(',');
+      imageBase64 = b64;
+      imageMimeType = header.match(/:(.*?);/)[1];
     } catch {
-      // Continue without brand assets if parsing fails
+      // Continue without reference image if reading fails
     }
 
     try {
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: form.title, description: form.description, content: form.content, colors, fonts, backgroundImage, templateShapes }),
+        body: JSON.stringify({ title: form.title, description: form.description, content: form.content, imageBase64, imageMimeType }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -80,10 +87,10 @@ export default function Home() {
         <h1 style={styles.heading}>SNV Slide Generator</h1>
 
         {/* Brand file upload */}
-        <label style={styles.label}>Reference File (.pptx)</label>
+        <label style={styles.label}>Reference Slide Image (PNG or JPG)</label>
         <input
           type="file"
-          accept=".pptx"
+          accept="image/png,image/jpeg,image/jpg"
           onChange={(e) => setBrandFile(e.target.files?.[0] || null)}
           style={styles.fileInput}
         />
@@ -134,7 +141,7 @@ export default function Home() {
           {status === 'loading' ? 'Generating...' : 'Generate'}
         </button>
 
-        {status === 'no-file' && <p style={styles.error}>Please upload a brand PPTX file first.</p>}
+        {status === 'no-file' && <p style={styles.error}>Please upload a reference slide image first.</p>}
         {status === 'validation' && <p style={styles.error}>Please fill in all fields before generating.</p>}
         {status === 'error' && (
           <p style={styles.error}>{errorMsg || 'Something went wrong. Please try again.'}</p>
