@@ -8,12 +8,13 @@
     "start": "next start"
   },
   "dependencies": {
-    "next": "^14.2.3",
-    "react": "^18",
-    "react-dom": "^18",
     "@anthropic-ai/sdk": "^0.20.0",
-    "jszip": "^3.10.1",
     "fast-xml-parser": "^4.3.6",
-    "pptxgenjs": "^3.12.0"
+    "html2canvas": "^1.4.1",
+    "jszip": "^3.10.1",
+    "next": "^14.2.3",
+    "pptxgenjs": "^3.12.0",
+    "react": "^18",
+    "react-dom": "^18"
   }
 }

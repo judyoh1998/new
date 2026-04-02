@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { parsePptx } from '../lib/parsePptx.js';
 
 export default function Home() {
@@ -10,6 +10,7 @@ export default function Home() {
   const [errorMsg, setErrorMsg] = useState(null);
   const [previewHtml, setPreviewHtml] = useState(null);
   const [pptxBase64, setPptxBase64] = useState(null);
+  const previewRef = useRef(null);
 
   function handleChange(e) {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -60,18 +61,18 @@ export default function Home() {
     }
   }
 
-  function handleDownload() {
-    if (!pptxBase64) return;
-    const bytes = Uint8Array.from(atob(pptxBase64), (c) => c.charCodeAt(0));
-    const blob = new Blob([bytes], {
-      type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${form.title || 'slide'}.pptx`;
-    a.click();
-    URL.revokeObjectURL(url);
+  async function handleDownload() {
+    if (!previewRef.current) return;
+    const html2canvas = (await import('html2canvas')).default;
+    const canvas = await html2canvas(previewRef.current, { scale: 2, useCORS: true });
+    canvas.toBlob((blob) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${form.title || 'slide'}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }, 'image/png');
   }
 
   return (
@@ -147,11 +148,12 @@ export default function Home() {
           <div style={styles.previewHeader}>
             <span style={styles.previewLabel}>Preview</span>
             <button onClick={handleDownload} style={styles.downloadButton}>
-              Download .pptx
+              Download PNG
             </button>
           </div>
           <div style={{ overflowX: 'auto' }}>
             <div
+              ref={previewRef}
               style={{ transform: 'scale(0.75)', transformOrigin: 'top left', width: 800, height: 450 }}
               dangerouslySetInnerHTML={{ __html: previewHtml }}
             />
