@@ -1,5 +1,4 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { parsePptx } from '../../../lib/parsePptx.js';
 import { generatePptx } from '../../../lib/generatePptx.js';
 import { logos } from '../../../lib/assetManifest.js';
 
@@ -7,20 +6,14 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function POST(request) {
   try {
-    const formData = await request.formData();
-    const file = formData.get('file');
-    const title = formData.get('title')?.trim();
-    const description = formData.get('description')?.trim();
-    const content = formData.get('content')?.trim();
+    const { title: rawTitle, description: rawDescription, content: rawContent, colors = [], fonts = [], backgroundImage = null, templateShapes = [] } = await request.json();
+    const title = rawTitle?.trim();
+    const description = rawDescription?.trim();
+    const content = rawContent?.trim();
 
-    if (!file || !title || !description || !content) {
+    if (!title || !description || !content) {
       return Response.json({ error: 'All fields and a brand PPTX file are required.' }, { status: 400 });
     }
-
-    // Parse brand assets from the uploaded PPTX
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const { colors, fonts } = await parsePptx(buffer);
 
     // Build Claude prompt
     const colorList = colors.length > 0 ? colors.join(', ') : 'no brand colors detected';
