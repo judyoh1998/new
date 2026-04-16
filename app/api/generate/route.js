@@ -20,14 +20,14 @@ export async function POST(request) {
     // Parse brand assets from the uploaded PPTX
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    const { colors, fonts } = await parsePptx(buffer);
+    const { colors = [], fonts = [] } = await parsePptx(buffer);
 
     // Build Claude prompt
-    const colorList = colors.length > 0 ? colors.join(', ') : 'no brand colors detected';
-    const headingFont = fonts[0] || 'Calibri';
-    const bodyFont = fonts[1] || fonts[0] || 'Calibri';
+    const colorList = colors.length ? colors.join(', ') : 'no brand colors detected';
+    const headingFont = fonts[0] || 'Verdana';
+    const bodyFont = fonts[1] || fonts[0] || 'Verdana';
 
-    const logoList = logos.length > 0
+    const logoList = Array.isArray(logos) && logos.length
       ? logos.map((l) => `- ${l.id}: ${l.description}`).join('\n')
       : '(none available)';
 
@@ -47,7 +47,9 @@ Rules:
 - if no brand colors were detected, use professional neutral defaults
 - choose logoId only if it genuinely fits the content; otherwise null`;
 
-    const userMessage = `Title: ${title}\nDescription: ${description}\nContent: ${content}`;
+    const userMessage = `Title: ${title}
+Description: ${description}
+Content: ${content}`;
 
     const message = await client.messages.create({
       model: 'claude-sonnet-4-6',
@@ -57,6 +59,7 @@ Rules:
     });
 
     // Parse Claude's JSON response
+    const textBlock = message.content.find((block) => block.type === 'text');
     let rawText = message.content[0]?.text || '';
     rawText = rawText
       .replace(/^[\s\S]*?```(?:json)?\s*/i, '') 
